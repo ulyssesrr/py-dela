@@ -7,13 +7,13 @@ def readme():
 
 
 setup(name='py-dela',
-      version='0.2.0',
+      version='0.2.1',
       description='Python DELA Dictionary(Unitex) support library',
       long_description=readme(),
       author='Ulysses Rangel Ribeiro',
       author_email='ulyssesrr@gmail.com',
       url='https://github.com/ulyssesrr/py-dela',
-      download_url = 'https://github.com/ulyssesrr/py-dela/tarball/0.2',
+      download_url = 'https://github.com/ulyssesrr/py-dela/tarball/0.2.1',
       license="LGPL",
       keywords=['dela', 'unitex', 'lemmatization'],
       classifiers=["Development Status :: 3 - Alpha",
