@@ -1,4 +1,8 @@
+#!/usr/bin/env python3
+# vim: set fileencoding=utf-8 :
+
 import struct
+import sys
 
 class Node:
 	
@@ -51,7 +55,9 @@ class CompressedForm:
 		form = form[0]
 		
 		pos = 0
-		if form[pos] == '_':
+		if len(form) == 0:
+			return False, [lambda u : u], info
+		elif form[pos] == '_':
 			diff_unit_size = True
 			pos += 1
 		else:
@@ -76,11 +82,23 @@ class CompressedForm:
 				
 				
 
-class Lexicon:
+class DELA:
 	
-	def __init__(self, bin_file):
+	def __init__(self, bin_file, inf_file):
 		self.nodes = {}
+		print("Loading bin file..")
 		self.load_bin_file(bin_file)
+		print("Loading inf file..")
+		self.load_inf_file(inf_file)
+		
+	def load_inf_file(self, bin_file):
+		with open(bin_file, encoding='utf-16-le') as f:
+			inf = [line.rstrip('\n') for line in f]
+		header = int(inf[0].lstrip('\ufeff'))
+		if header != len(inf)-1:
+			print("Invalid header: %d Actual: %d" % (header, len(inf)-1))
+		self.inf = inf[1:]
+		print("INF LOADED")
 	
 	def load_bin_file(self, bin_file):
 		with open(bin_file, "rb") as f:
@@ -95,25 +113,42 @@ class Lexicon:
 #		print(self.nodes[715717].get_transition('o'))
 #		print(self.nodes[5856].get_transition('u'))
 #		print(self.nodes[1242].inf_index)
-		print(self.find('roubou'))
+#		print(self.find('roubou'))
 		
 	
 	def find(self, word):
 		pos = 4
 		for c in word:
 			pos = self.nodes[pos].get_transition(c)
-		return self.nodes[pos].inf_index
+		inf_index = self.nodes[pos].inf_index
+		if inf_index == None:
+			raise KeyError('"%s" not found' % word)
+		inf_value = self.inf[inf_index]
+		if type(inf_value) == str:
+			cunits = inf_value.split(",")
+			inf_value = []
+			self.inf[inf_index] = inf_value
+			for cu in cunits:
+				inf_value += [CompressedForm(cu)]
+		return inf_value
+	
+	def get_lemmas(self, word, noEcho=False):
+		try:
+			cfs = self.find(word)
+			return [cf.get_lemma(word) for cf in cfs]
+		except KeyError:
+			return None if noEcho else word
 			
 	def load_automaton_state(self, f):
 		state_position = f.tell()
 		state_header = struct.unpack('>H', f.read(2))[0]
-		print("State Header: %d" % state_header)
+		#print("State Header: %d" % state_header)
 		is_final = 0b1000000000000000 & state_header != 0b1000000000000000
 		num_transitions = ~0b1000000000000000 & state_header
-		print("Number of transitions: %d" % num_transitions)
+		#print("Number of transitions: %d" % num_transitions)
 		if is_final:
 			inf_index = struct.unpack('>i', b'\0' + f.read(3))[0]
-			print("Inf Index: %d" % inf_index)
+			#print("Inf Index: %d" % inf_index)
 			node = Node(inf_index)
 		else:
 			node = Node()
@@ -124,14 +159,57 @@ class Lexicon:
 	
 	def load_transition(self, f):
 		transition_char = f.read(2).decode('utf-16-be')
-		print(transition_char)
+		#print(transition_char)
 		next_state_position = struct.unpack('>i', b'\0' + f.read(3))[0]
-		print("Next State Position: %d" % next_state_position)
+		#print("Next State Position: %d" % next_state_position)
 		return transition_char, next_state_position
 			
+			
+
+import os
+class Lexicon:
+	
+	def __init__(self, source):
+		if type(source) == list:
+			pass
+		else:
+			source = Lexicon.find_delas(source)
+		self.delas = []
+		for bin_file, inf_file in source:
+			dela = DELA(bin_file, inf_file)
+			self.delas += [dela]
+			print("LOADED DELA")
+	
+	def get_lemmas(self, word):
+		ret = []
+		for dela in self.delas:
+			ret.extend(dela.get_lemmas(word))
+		return ret
+	
+	def find_delas(path):
+		files = []
+		for (dirpath, dirnames, filenames) in os.walk(path):
+			files.extend(filenames)
+			break
+		files = [os.path.join(path, f) for f in files]
+		candidates = {}
+		for f in files:
+			if f.lower()[-4:] == '.bin':
+				candidates[f.lower()[:-4]] = (f,)
+		for f in files:
+			key = f.lower()[:-4]
+			if f.lower()[-4:] == '.inf' and key in candidates:
+				candidates[key] += (f,)
+		return [f for f in candidates.values() if len(f) == 2]
+	
+
 if __name__ == '__main__':
-	print(CompressedForm('3er 1.N').get_lemma('premiere partie'))
-	print(CompressedForm('_10\\0\\0\\7.N').get_lemma('James Bond'))
-	print(CompressedForm('0-1.N:p').get_lemma('battle-axes-'))
+	#print(CompressedForm('3er 1.N').get_lemma('premiere partie'))
+	#print(CompressedForm('_10\\0\\0\\7.N').get_lemma('James Bond'))
+	#print(CompressedForm('0-1.N:p').get_lemma('battle-axes-'))
+	dela = DELA("/home/ulysses/Applications/Unitex3.1beta/Portuguese (Brazil)/Dela/DELAF_PB.bin", "/home/ulysses/Applications/Unitex3.1beta/Portuguese (Brazil)/Dela/DELAF_PB.inf")
+	print(dela.get_lemmas(sys.argv[1]))
+	lexicon = Lexicon("/home/ulysses/Applications/Unitex3.1beta/Portuguese (Brazil)/Dela/")
+	print(lexicon.get_lemmas(sys.argv[1]))
 	#lexicon = Lexicon("/home/ulysses/Apps/Unitex3.1beta/Portuguese (Brazil)/Dela/DELAF_PB.bin")
 	
