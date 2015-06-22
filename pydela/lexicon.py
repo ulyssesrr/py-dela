@@ -43,7 +43,7 @@ class CompressedForm:
 				return word
 			for i, unit in enumerate(units):
 				units[i] = self.unit_processors[i](units[i])
-			return "".join(units)
+			return ("".join(units), self.info)
 	
 	def parse_forms(forms):
 		for form in forms:
@@ -137,7 +137,7 @@ class DELA:
 			cfs = self.find(word)
 			return [cf.get_lemma(word) for cf in cfs]
 		except KeyError:
-			return None if noEcho else word
+			return None if noEcho else [(word, None)]
 			
 	def load_automaton_state(self, f):
 		state_position = f.tell()
@@ -183,8 +183,10 @@ class Lexicon:
 	def get_lemmas(self, word):
 		ret = []
 		for dela in self.delas:
-			ret.extend(dela.get_lemmas(word))
-		return ret
+			lemmas = dela.get_lemmas(word)
+			if len(lemmas) > 0 and lemmas[0][1] != None:
+				ret.extend(lemmas)
+		return set(ret)
 	
 	def find_delas(path):
 		files = []
